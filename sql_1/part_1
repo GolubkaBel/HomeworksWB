@@ -1,0 +1,25 @@
+--Запрос 1
+-- -- Возраст не разбивается на категории 
+SELECT 
+	city, age, 
+	COUNT(id) AS countUsers 
+FROM users 
+GROUP BY city, age 
+ORDER BY COUNT(age), age;
+
+-- -- Возраст разбивается на категории 
+SELECT city, COUNT(id) AS countUsers,
+	CASE 
+    	WHEN age<21 THEN 'young' 
+        WHEN age<50 THEN 'adult' 
+        ELSE 'old' 
+	END AS ageCategory
+FROM users 
+GROUP BY city, ageCategory 
+ORDER BY COUNT(id);
+
+--Запрос 2
+SELECT ROUND(AVG(price::INT), 2) AS avg_price, category 
+FROM products 
+WHERE name SIMILAR TO '%(h|H)(air|ome)%' 
+GROUP BY category;

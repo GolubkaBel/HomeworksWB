@@ -1,0 +1,74 @@
+-- Запрос 1
+-- -- С использованием подзапроса
+WITH cond AS (
+  SELECT 
+  	seller_id, 
+  	AVG(rating) AS avg_rating, 
+  	COUNT(DISTINCT category) AS total_categ, 
+  	SUM(revenue) AS total_revenue 
+  FROM sellers 
+  WHERE category<>'Bedding' 
+  GROUP BY seller_id) 
+SELECT *, 
+	CASE 
+    	WHEN total_categ>1 AND total_revenue>50000 THEN 'rich' 
+        WHEN total_categ>1 THEN 'poor' 
+        ELSE 'other' 
+    END AS seller_type 
+FROM cond 
+WHERE total_categ>1 
+ORDER BY seller_id;
+
+-- -- Через функцию UNION (объединяються запрос, выдающий rich пользователей, c запросом с poor)
+(
+ SELECT 
+ 	seller_id, 
+ 	COUNT(DISTINCT category) AS total_categ, 
+ 	AVG(rating) AS avg_rating, 
+ 	SUM(revenue) AS total_revenue, 
+ 	'rich' AS seller_type 
+ FROM sellers 
+ WHERE category<>'Bedding' 
+ GROUP BY seller_id 
+ HAVING COUNT(DISTINCT category)>1 AND SUM(revenue)>50000
+) UNION (
+ SELECT 
+ 	seller_id, 
+  	COUNT(DISTINCT category) AS total_categ, 
+  	AVG(rating) AS avg_rating, 
+  	SUM(revenue) AS total_revenue, 
+  	'poor' AS seller_type 
+ FROM sellers 
+ WHERE category<>'Bedding' 
+ GROUP BY seller_id 
+ HAVING COUNT(DISTINCT category)>1 AND SUM(revenue)<=50000
+) 
+ORDER BY seller_id;
+
+--Запрос 2
+WITH cond1 as (  
+  SELECT 
+  	seller_id, 
+  	FLOOR((CURRENT_DATE - to_date(MIN(date_reg), 'DD/MM/YYYY')) / 30) as month_from_registration,
+  	MAX(delivery_days) as maxDD,
+  	MIN(delivery_days) as minDD
+  FROM sellers 
+  WHERE category<>'Bedding' 
+  GROUP BY seller_id
+  HAVING COUNT(DISTINCT category)>1 AND SUM(revenue)<=50000
+) 
+SELECT 
+	seller_id, month_from_registration, 
+    ((SELECT MAX(maxDD) FROM cond1) - (SELECT MIN(minDD) FROM cond1)) as max_delivery_difference
+FROM cond1
+ORDER BY seller_id;
+
+--Запрос 3
+SELECT 
+    seller_id, 
+    array_to_string(ARRAY_AGG(category order BY category), '-') AS category_pair 
+FROM sellers 
+WHERE EXTRACT(YEAR FROM to_date(date_reg, 'DD/MM/YYYY')) = 2022 
+GROUP BY seller_id 
+HAVING SUM(revenue)>75000 AND COUNT(category)=2
+ORDER BY seller_id;

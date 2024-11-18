@@ -1,0 +1,63 @@
+-- Запрос 1
+-- -- Запрос ПОдходящий для общих случаев
+
+SELECT 
+	customers.customer_id, order_date, shipment_date,
+	EXTRACT(EPOCH FROM (shipment_date::TIMESTAMP - order_date::TIMESTAMP)) 
+FROM orders INNER JOIN customers ON orders.customer_id=customers.customer_id
+WHERE EXTRACT(EPOCH FROM (shipment_date::TIMESTAMP - order_date::TIMESTAMP)) = 
+	(SELECT MAX(EXTRACT(EPOCH FROM (shipment_date::TIMESTAMP - order_date::TIMESTAMP))) FROM orders);
+
+-- -- Если бы был только один клиент с таким количеством дней ожидания и в этом была бы полная увереность,
+то можно было бы сделать и такой запрос:
+
+SELECT customers.customer_id, order_id,
+	(DATE(shipment_date) - DATE(order_date)) AS count_waiting_days,
+    order_date, shipment_date
+FROM customers INNER JOIN orders ON customers.customer_id=orders.customer_id
+ORDER BY (DATE(shipment_date) - DATE(order_date)) DESC
+LIMIT 1;
+
+-- Запрос 2
+
+WITH cond AS (
+  SELECT customers.customer_id, name,
+  	COUNT(order_id) AS count_orders, SUM(order_ammount) AS sum_amount,
+  	AVG(shipment_date::TIMESTAMP - order_date::TIMESTAMP) AS avg_delivery_time
+  FROM orders INNER JOIN customers ON orders.customer_id=customers.customer_id
+  GROUP BY customers.customer_id, name
+)
+SELECT * FROM cond 
+WHERE count_orders=(SELECT MAX(count_orders) FROM cond)
+ORDER BY sum_amount DESC;
+
+-- Запрос 3
+
+WITH more_5_ddelay AS (
+  SELECT customers.customer_id, COUNT(order_id) AS count_delay_orders
+  FROM orders INNER JOIN customers ON customers.customer_id=orders.customer_id
+  WHERE (DATE(shipment_date) - DATE(order_date))>5 --AND order_status<>'Cancel'
+  GROUP BY customers.customer_id, name
+), cancel_order AS (
+  SELECT customers.customer_id, COUNT(order_id) as count_cancel_orders
+  FROM orders INNER JOIN customers ON customers.customer_id=orders.customer_id
+  WHERE order_status='Cancel'
+  GROUP BY customers.customer_id, name  
+) 
+SELECT customer_id, name, count_cancel_orders, count_delay_orders, sum_orders
+FROM (
+  SELECT customers.customer_id, name,
+      COALESCE(count_cancel_orders, 0) AS count_cancel_orders,
+      COALESCE(count_delay_orders, 0) AS count_delay_orders
+  FROM more_5_ddelay 
+      FULL JOIN cancel_order 
+          ON more_5_ddelay.customer_id=cancel_order.customer_id
+      INNER JOIN customers 
+    	  ON customers.customer_id=more_5_ddelay.customer_id OR customers.customer_id=cancel_order.customer_id
+) INNER JOIN ( 
+  SELECT count(order_id) AS sum_orders, customers.customer_id AS cid
+  FROM orders NATURAL JOIN customers
+  WHERE order_status='Cancel'
+  GROUP BY customers.customer_id
+) ON customer_id=cid
+ORDER BY sum_orders DESC;

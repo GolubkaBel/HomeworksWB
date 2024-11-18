@@ -32,7 +32,7 @@ WHERE count_orders=(SELECT MAX(count_orders) FROM cond)
 ORDER BY sum_amount DESC;
 
 -- Запрос 3
-
+-- -- Если под общей суммой пониамется общая сумма количсества отмененных и задержанных заказов
 WITH more_5_ddelay AS (
   SELECT customers.customer_id, COUNT(order_id) AS count_delay_orders
   FROM orders INNER JOIN customers ON customers.customer_id=orders.customer_id
@@ -61,3 +61,33 @@ FROM (
   GROUP BY customers.customer_id
 ) ON customer_id=cid
 ORDER BY sum_orders DESC;
+
+-- -- Если под общей суммой понимается сумма денег общая
+WITH more_5_ddelay AS (
+  SELECT customers.customer_id, COUNT(order_id) AS count_delay_orders
+  FROM orders INNER JOIN customers ON customers.customer_id=orders.customer_id
+  WHERE (DATE(shipment_date) - DATE(order_date))>5 --AND order_status<>'Cancel'
+  GROUP BY customers.customer_id, name
+), cancel_order AS (
+  SELECT customers.customer_id, COUNT(order_id) as count_cancel_orders
+  FROM orders INNER JOIN customers ON customers.customer_id=orders.customer_id
+  WHERE order_status='Cancel'
+  GROUP BY customers.customer_id, name  
+) 
+SELECT customer_id, name, count_cancel_orders, count_delay_orders, sum_ammount_orders
+FROM (
+  SELECT customers.customer_id, name,
+      COALESCE(count_cancel_orders, 0) AS count_cancel_orders,
+      COALESCE(count_delay_orders, 0) AS count_delay_orders
+  FROM more_5_ddelay 
+      FULL JOIN cancel_order 
+          ON more_5_ddelay.customer_id=cancel_order.customer_id
+      INNER JOIN customers 
+    	  ON customers.customer_id=more_5_ddelay.customer_id OR customers.customer_id=cancel_order.customer_id
+) INNER JOIN ( 
+  SELECT SUM(order_ammount) AS sum_ammount_orders, customers.customer_id AS cid
+  FROM orders NATURAL JOIN customers
+  WHERE order_status='Cancel'
+  GROUP BY customers.customer_id
+) ON customer_id=cid
+ORDER BY sum_ammount_orders DESC;

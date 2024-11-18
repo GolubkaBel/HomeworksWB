@@ -1,0 +1,26 @@
+WITH product_amount_cond AS (
+  SELECT SUM(order_ammount) AS product_amount,
+  product_category, product_name
+  FROM orders_2 NATURAL JOIN products_2 
+  GROUP BY product_category, product_name
+), max_pac AS (
+  SELECT MAX(product_amount) AS max_product_amount, product_category
+  FROM product_amount_cond
+  GROUP BY product_category
+)
+SELECT product_category, total_amount, category_with_max_amount, product_name
+FROM (
+  SELECT
+	product_category,
+	SUM(product_amount) AS total_amount,
+    (SELECT product_category 
+     FROM orders_2 NATURAL JOIN products_2 
+     GROUP BY product_category 
+     ORDER BY SUM(order_ammount) DesC
+     LIMIT 1) AS category_with_max_amount
+  FROM product_amount_cond
+  GROUP BY product_amount_cond.product_category
+) INNER JOIN (
+  SELECT max_pac.product_category AS pg, product_name
+  FROM max_pac INNER JOIN product_amount_cond ON product_amount=max_product_amount
+) ON product_category=pg;

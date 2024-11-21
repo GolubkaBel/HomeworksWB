@@ -1,0 +1,71 @@
+CREATE TABLE query (
+    searchid INTEGER,
+    year INTEGER,
+    month INTEGER,
+    day INTEGER,
+    userid INTEGER,
+    ts TIMESTAMP,  
+    devicetype VARCHAR(50),
+    deviceid INTEGER,
+    query VARCHAR(255)
+);
+
+INSERT INTO query (searchid, year, month, day, userid, ts, devicetype, deviceid, query) VALUES
+(1, 2024, 3, 8, 1, '2024-03-08 10:00:00', 'Samsung', 1001, 'к'),
+(2, 2024, 3, 8, 1, '2024-03-08 10:01:00', 'Samsung', 1001, 'ку'),
+(3, 2024, 3, 8, 1, '2024-03-08 10:02:00', 'Samsung', 1001, 'куп'),
+(4, 2024, 3, 8, 1, '2024-03-08 10:03:00', 'Samsung', 1001, 'купить'),
+(5, 2024, 3, 8, 1, '2024-03-08 10:12:00', 'Samsung', 1001, 'купить кур'),
+(6, 2024, 3, 8, 1, '2024-03-08 10:13:00', 'Samsung', 1001, 'купить куртку'),
+(7, 2024, 3, 8, 2, '2024-03-08 10:15:00', 'Apple', 1002, 'куртка'),
+(8, 2024, 3, 8, 2, '2024-03-08 10:07:00', 'Apple', 1002, 'купить куртку зимнюю'),
+(9, 2024, 3, 8, 3, '2024-03-08 10:08:00', 'Xiaomi', 1003, 'пуховик'),
+(10, 2024, 3, 8, 3, '2024-03-08 10:09:30', 'Xiaomi', 1003, 'пальто'),
+(11, 2024, 3, 9, 1, '2024-03-09 10:00:00', 'Samsung', 1001, 'шапка'),
+(12, 2024, 3, 9, 1, '2024-03-09 10:01:00', 'Samsung', 1001, 'шапка ушанка'),
+(13, 2024, 3, 9, 2, '2024-03-09 10:02:00', 'Apple', 1002, 'сапоги'),
+(14, 2024, 3, 9, 2, '2024-03-09 10:03:00', 'Apple', 1002, 'сап'),
+(15, 2024, 3, 9, 3, '2024-03-09 10:04:00', 'Xiaomi', 1003, 'перчатки'),
+(16, 2024, 3, 10, 1, '2024-03-10 10:00:00', 'Samsung', 1001, 'варежки'),
+(17, 2024, 3, 10, 2, '2024-03-10 10:01:00', 'Apple', 1002, 'рукавицы'),
+(18, 2024, 3, 10, 3, '2024-03-10 10:02:00', 'Xiaomi', 1003, 'носки'),
+(19, 2024, 3, 10, 1, '2024-03-10 10:03:00', 'Samsung', 1001, 'теплые носки'),
+(20, 2024, 3, 10, 2, '2024-03-10 10:04:00', 'Apple', 1002, 'шуба');
+
+WITH cond AS ( 
+  SELECT *,
+  	LEAD(query) OVER (PARTITION BY userid ORDER BY ts) AS next_query, 
+  	LEAD(ts) OVER (PARTITION BY userid ORDER BY ts) AS next_ts
+  FROM query
+), cond2 AS (
+  SELECT *, 
+  	CASE 
+  		WHEN next_query ISNULL OR EXTRACT(EPOCH FROM AGE(next_ts, ts))>180 THEN 1
+  		WHEN next_query<query AND EXTRACT(EPOCH FROM AGE(next_ts, ts))>60 THEN 2
+  		ELSE 0 
+  	END AS is_final
+  FROM cond
+)
+SELECT year, month, day, userid, ts, devicetype, deviceid, query, next_query, is_final
+FROM cond2 
+WHERE devicetype<>'Apple' AND is_final<>0 AND day=8; 
+
+-- -- Если разграничивать запросную деятельность человека по дням, то есть под формулировкой
+-- -- в задании "после данного запроса больше ничего не искал" подразумевается ничего не искал сегодня
+WITH cond AS ( 
+  SELECT *,
+  	LEAD(query) OVER (PARTITION BY userid ORDER BY ts) AS next_query, 
+  	LEAD(ts) OVER (PARTITION BY userid ORDER BY ts) AS next_ts
+  FROM query
+), cond2 AS (
+  SELECT *, 
+  	CASE 
+  		WHEN (next_query ISNULL OR EXTRACT(EPOCH FROM AGE(next_ts, ts))>180) AND next_ts::DATE=ts::DATE THEN 1
+  		WHEN next_query<query AND EXTRACT(EPOCH FROM AGE(next_ts, ts))>60 AND next_ts::DATE=ts::DATE THEN 2
+  		ELSE 0 
+  	END AS is_final
+  FROM cond
+)
+SELECT year, month, day, userid, ts, devicetype, deviceid, query, next_query, is_final
+FROM cond2 
+WHERE devicetype<>'Apple' AND is_final<>0 AND day=8; 

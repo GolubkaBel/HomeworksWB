@@ -1,0 +1,23 @@
+Запрос 1.1 - Без использования оконных функций
+-- Менять MAX на MIN для сотрудников с минимальной зарплатой
+SELECT first_name, last_name, salary, industry, name_ighest_sal
+FROM
+(
+  SELECT first_name, last_name, salary, industry
+  FROM salary
+) LEFT JOIN (
+  SELECT (first_name || ' ' || last_name) AS name_ighest_sal, industry AS indust
+  FROM salary INNER JOIN (
+  	SELECT MAX(salary) AS max_salary, industry AS ind
+  	FROM salary 
+  	GROUP BY industry
+  ) ON salary.salary=max_salary AND industry=ind
+) ON industry=indust
+ORDER BY industry;
+
+Запрос 1.2 - С использованием оконных функций
+-- Меняется FIRST_VALUE на LAST_VALUE для сотрудников с минимальной зарплатой
+SELECT 
+	first_name, last_name, salary, industry, 
+    FIRST_VALUE(first_name || ' ' || last_name) OVER (PARTITION BY industry ORDER BY salary DESC)
+FROM salary;
